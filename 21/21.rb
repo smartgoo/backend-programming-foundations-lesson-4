@@ -86,7 +86,7 @@ def calc_ttl_score(arr)
 
   if total_non_ace_score + total_ace_score <= MAX_SCORE
     return total_non_ace_score + total_ace_score
-  elsif decide_each_ace(arr, total_non_ace_score) != nil
+  elsif !decide_each_ace(arr, total_non_ace_score).nil?
     return decide_each_ace(arr, total_non_ace_score)
   end
   total_ace_score + total_non_ace_score
