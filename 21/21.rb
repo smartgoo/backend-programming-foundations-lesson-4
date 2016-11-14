@@ -1,6 +1,6 @@
 require 'pry'
 
-VALUES = { '2' => 2, '3' => 3, '4' => 4, '5' => 5, '6' => 6, '7' => 7,
+VALUES = { "2" => 2, "3" => 3, "4" => 4, "5" => 5, "6" => 6, "7" => 7,
            '8' => 8, '9' => 9, '10' => 10, 'Jack' => 10, 'Queen' => 10,
            'King' => 10, 'Ace' => 11 }.freeze
 MAX_SCORE = 21
@@ -28,7 +28,16 @@ def create_deck
   deck
 end
 
-def prompt(message)
+def add_to_glog(str, glog)
+  glog.push(str)
+end
+
+def print_glog(glog)
+  puts glog.join("\n")
+end
+
+def prompt(message, glog = [])
+  add_to_glog("=> #{message}", glog)
   puts "=> #{message}"
 end
 
@@ -39,8 +48,8 @@ def card_available?(cards, st, crd)
   end
 end
 
-def bust?(dealt_crds, indx)
-  calc_score_aces(dealt_crds, indx) <= MAX_SCORE
+def bust?(dealt_crds)
+  calc_ttl_score(dealt_crds) <= MAX_SCORE
 end
 
 def calculate_score(arr)
@@ -56,26 +65,31 @@ def calculate_score(arr)
   score
 end
 
-def calc_score_aces(arr, indx)
-  temp_ace_sum = 0
-  total_non_ace_score = calculate_score(arr[indx].select { |val| val != 'Ace' })
-  total_ace_score = calculate_score(arr[indx].select { |val| val == 'Ace' })
-
-  if total_non_ace_score + total_ace_score <= MAX_SCORE
-    return total_score = total_non_ace_score + total_ace_score
-  else
-    ace_score_arr = []
-    (0..arr[indx].select { |val| val == 'Ace' }.count - 1).each { |num| ace_score_arr[num] = 11 }
-    ace_score_arr.each_index do |v|
-      ace_score_arr[v] -= 10
-      temp_ace_sum = 0
-      ace_score_arr.each { |a| temp_ace_sum += a }
-      if temp_ace_sum + total_non_ace_score <= MAX_SCORE
-        return total_score = temp_ace_sum + total_non_ace_score
-      end
+def decide_each_ace(arr, non_ace_score)
+  ace_score_arr = []
+  length = arr.select { |val| val == 'Ace' }.count - 1
+  (0..length).each { |num| ace_score_arr[num] = 11 }
+  ace_score_arr.each_index do |i|
+    ace_score_arr[i] -= 10
+    temp_ace_sum = 0
+    ace_score_arr.each { |a| temp_ace_sum += a }
+    if temp_ace_sum + non_ace_score <= MAX_SCORE
+      return temp_ace_sum + non_ace_score
     end
   end
-  total_score = total_ace_score + total_non_ace_score
+  nil
+end
+
+def calc_ttl_score(arr)
+  total_non_ace_score = calculate_score(arr.select { |val| val != 'Ace' })
+  total_ace_score = calculate_score(arr.select { |val| val == 'Ace' })
+
+  if total_non_ace_score + total_ace_score <= MAX_SCORE
+    return total_non_ace_score + total_ace_score
+  elsif decide_each_ace(arr, total_non_ace_score) != nil
+    return decide_each_ace(arr, total_non_ace_score)
+  end
+  total_ace_score + total_non_ace_score
 end
 
 def deal_card(cards)
@@ -84,7 +98,7 @@ def deal_card(cards)
     card = cards[suit].keys.sample
     crd_nm_avail = card_available?(cards, suit, card)
     if crd_nm_avail
-      return crd_nm_avail
+      return [crd_nm_avail, suit]
     end
   end
 end
@@ -94,7 +108,7 @@ def determine_winner(crds, dealer, player)
     "Dealer"
   elsif dealer == true
     "Player"
-  elsif calc_score_aces(crds, 0) >= calc_score_aces(crds, 1)
+  elsif calc_ttl_score(rmv_suit(crds, 0)) >= calc_ttl_score(rmv_suit(crds, 1))
     "Dealer"
   else
     "Player"
@@ -110,31 +124,57 @@ def initial_deal(cards)
   dealt
 end
 
-def display_cards(arr, player, computer) # need to clean up this method
+def display_cards(arr, player, computer, glog, game_state = 'ongoing')
   system 'clear'
-  puts "Player: #{player} Dealer: #{computer}", ""
-  puts "Dealer: Hidden Card, #{arr[0][(1..52)].join(', ')}"
-  puts "Player: #{arr[1].join(', ')}"
+  puts "Player: #{player} Dealer: #{computer}", "", "Dealer:"
+  if game_state == 'ongoing'
+    puts " - Hidden Card"
+    arr[0].each_index do |i|
+      i >= 1 ? puts(" - #{arr[0][i].join(' (')}" + ')') : nil
+    end
+  else
+    arr[0].each { |v| puts " - #{v.join(' (')}" + ')' }
+  end
+
+  puts "", "Player"
+  arr[1].each { |v| puts " - #{v.join(' (')}" + ')' }
   puts "---------------------------------------------------", ""
+
+  print_glog(glog)
 end
 
-def busted_text(who)
+def busted_text(who, glog)
   if who == 'Player'
-    prompt "You busted!"
+    prompt("You busted!", glog)
   else
-    prompt "Dealer busted!"
+    prompt("Dealer busted!", glog)
   end
 end
 
-def approp_answer(pos_arr, neg_arr)
+def rmv_suit(arr, indx)
+  crds = []
+  arr[indx].each_index do |i|
+    arr[indx][i].each_index do |i2|
+      if i2.zero?
+        crds.push arr[indx][i][i2]
+      end
+    end
+  end
+  crds
+end
+
+def approp_answer?(pos_arr, neg_arr, glog)
   loop do
     answer = gets.chomp.downcase
     if pos_arr.include?(answer)
-      return 'positive'
+      add_to_glog(answer, glog)
+      return 'pos'
     elsif neg_arr.include?(answer)
-      return 'negative'
+      add_to_glog(answer, glog)
+      return 'neg'
     else
-      prompt "Please enter a valid choice"
+      add_to_glog(answer, glog)
+      prompt("Please enter a valid choice", glog)
     end
   end
 end
@@ -143,38 +183,41 @@ player_score = 0
 computer_score = 0
 
 loop do
+  game_log = []
   deck = create_deck
   dealt_cards = initial_deal(deck)
-  display_cards(dealt_cards, player_score, computer_score)
+  display_cards(dealt_cards, player_score, computer_score, game_log)
   player_busted = false
   dealer_busted = false
 
   loop do
-    if bust?(dealt_cards, 1)
-      prompt "Hit or stay?"
-      break if approp_answer(['hit'], ['stay']) == 'negative'
+    if bust?(rmv_suit(dealt_cards, 1))
+      prompt("(h)it or (s)tay?", game_log)
+      break if approp_answer?(['hit', 'h'], ['stay', 's'], game_log) == 'neg'
       dealt_cards[1].push(deal_card(deck))
-      display_cards(dealt_cards, player_score, computer_score)
+      display_cards(dealt_cards, player_score, computer_score, game_log)
     else
-      busted_text('Player')
+      busted_text('Player', game_log)
+      display_cards(dealt_cards, player_score, computer_score, game_log)
       player_busted = true
       break
     end
   end
 
-  if player_busted == false
+  unless player_busted == true # this will not be executed if the player busts
     loop do
-      if bust?(dealt_cards, 0)
-        if calc_score_aces(dealt_cards, 0) < DEALER_SCORE
+      if bust?(rmv_suit(dealt_cards, 0))
+        if calc_ttl_score(rmv_suit(dealt_cards, 0)) < DEALER_SCORE
           dealt_cards[0].push(deal_card(deck))
-          display_cards(dealt_cards, player_score, computer_score)
-          prompt "Dealer was under #{DEALER_SCORE} and drew a card"
+          display_cards(dealt_cards, player_score, computer_score, game_log)
+          prompt("Dealer was under #{DEALER_SCORE} and drew a card", game_log)
         else
-          prompt "Dealer stays"
+          prompt("Dealer stays", game_log)
           break
         end
       else
-        busted_text('Dealer')
+        busted_text('Dealer', game_log)
+        display_cards(dealt_cards, player_score, computer_score, game_log)
         dealer_busted = true
         break
       end
@@ -182,23 +225,27 @@ loop do
   end
 
   if determine_winner(dealt_cards, dealer_busted, player_busted) == 'Dealer'
-    prompt "Dealer wins with #{calc_score_aces(dealt_cards, 0)}!"
+    computer_cards = rmv_suit(dealt_cards, 0)
+    prompt("Dealer wins with #{calc_ttl_score(computer_cards)}!", game_log)
     computer_score += 1
   else
-    prompt "Player wins with #{calc_score_aces(dealt_cards, 1)}!"
+    player_cards = rmv_suit(dealt_cards, 1)
+    prompt("Player wins with #{calc_ttl_score(player_cards)}!", game_log)
     player_score += 1
   end
 
-  prompt "Dealers hidden card: #{dealt_cards[0][0]}"
-
-  prompt "Press enter when ready to move on to the next round"
-  gets
+  display_cards(dealt_cards, player_score, computer_score, game_log, 'done')
 
   if player_score == 5
-    prompt "Player won the game!"
+    prompt("Player won the game!", game_log)
+    break
   elsif computer_score == 5
-    prompt "Dealer won the game!"
+    prompt("Dealer won the game!", game_log)
+    break
   end
+
+  prompt("(r)eady for the next round? (you can also (q)uit here).", game_log)
+  break if approp_answer?(['ready', 'r'], ['quit', 'q'], game_log) == 'neg'
 end
 
-prompt "Thanks for playing!"
+prompt("Thanks for playing!")
